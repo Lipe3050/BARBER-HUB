@@ -1,6 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
-import * as Notifications from "expo-notifications";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -14,29 +12,14 @@ import {
   View,
 } from "react-native";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+import {
+  listarHorariosOcupados as buscarHorariosOcupados,
+  salvarAgendamento,
+} from "../src/services/agendamentosService";
 
 type DiaCalendario = {
   dia: string;
   disponivel: boolean;
-};
-
-type Agendamento = {
-  id: string;
-  nome: string;
-  telefone: string;
-  servico: string;
-  data: string;
-  horario: string;
-  observacao: string;
-  status: string;
 };
 
 const diasJunho2026: DiaCalendario[] = [
@@ -82,44 +65,6 @@ const horariosPorPeriodo = {
   noite: ["17:00", "17:30"],
 };
 
-async function pedirPermissaoNotificacao() {
-  const { status } = await Notifications.requestPermissionsAsync();
-
-  if (status !== "granted") {
-    Alert.alert(
-      "Permissão necessária",
-      "Para receber lembretes, permita as notificações do aplicativo."
-    );
-    return false;
-  }
-
-  return true;
-}
-
-async function criarLembreteTeste(
-  nome: string,
-  servico: string,
-  horario: string
-) {
-  const permissao = await pedirPermissaoNotificacao();
-
-  if (!permissao) {
-    return;
-  }
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Lembrete BARBER HUB 💈",
-      body: `Olá, ${nome}! Seu horário para ${servico} está marcado para ${horario}.`,
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: 10,
-    },
-  });
-}
-
 export default function AgendarScreen() {
   const params = useLocalSearchParams();
 
@@ -137,37 +82,32 @@ export default function AgendarScreen() {
   >("tarde");
 
   const [horarioSelecionado, setHorarioSelecionado] = useState("13:00");
-
   const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]);
+  const [salvando, setSalvando] = useState(false);
 
   const horariosDisponiveis = useMemo(() => {
     return horariosPorPeriodo[periodoSelecionado];
   }, [periodoSelecionado]);
 
   async function carregarHorariosOcupados() {
-    const diaFormatado = diaSelecionado.padStart(2, "0");
-    const dataCompleta = `${diaFormatado}/06/2026`;
+    try {
+      const diaFormatado = diaSelecionado.padStart(2, "0");
+      const dataCompleta = `${diaFormatado}/06/2026`;
 
-    const agendamentosSalvos = await AsyncStorage.getItem(
-      "@barberhub:agendamentos"
-    );
+      const ocupados = await buscarHorariosOcupados(dataCompleta);
 
-    const listaAgendamentos: Agendamento[] = agendamentosSalvos
-      ? JSON.parse(agendamentosSalvos)
-      : [];
+      setHorariosOcupados(ocupados);
 
-    const ocupados = listaAgendamentos
-      .filter(
-        (agendamento) =>
-          agendamento.data === dataCompleta &&
-          agendamento.status === "Confirmado"
-      )
-      .map((agendamento) => agendamento.horario);
+      if (ocupados.includes(horarioSelecionado)) {
+        setHorarioSelecionado("");
+      }
+    } catch (error: any) {
+      console.log("ERRO AO BUSCAR HORÁRIOS:", error);
 
-    setHorariosOcupados(ocupados);
-
-    if (ocupados.includes(horarioSelecionado)) {
-      setHorarioSelecionado("");
+      Alert.alert(
+        "Erro ao buscar horários",
+        error.message || "Não foi possível carregar os horários do banco online."
+      );
     }
   }
 
@@ -189,63 +129,55 @@ export default function AgendarScreen() {
       return;
     }
 
-    const diaFormatado = diaSelecionado.padStart(2, "0");
-    const dataCompleta = `${diaFormatado}/06/2026`;
+    try {
+      setSalvando(true);
 
-    const novoAgendamento = {
-      id: String(new Date().getTime()),
-      nome,
-      telefone,
-      servico,
-      data: dataCompleta,
-      horario: horarioSelecionado,
-      observacao: "",
-      status: "Confirmado",
-    };
+      const diaFormatado = diaSelecionado.padStart(2, "0");
+      const dataCompleta = `${diaFormatado}/06/2026`;
 
-    const agendamentosSalvos = await AsyncStorage.getItem(
-      "@barberhub:agendamentos"
-    );
+      const ocupados = await buscarHorariosOcupados(dataCompleta);
 
-    const listaAgendamentos: Agendamento[] = agendamentosSalvos
-      ? JSON.parse(agendamentosSalvos)
-      : [];
+      if (ocupados.includes(horarioSelecionado)) {
+        Alert.alert(
+          "Horário indisponível",
+          "Já existe um agendamento confirmado para essa data e horário."
+        );
 
-    const horarioJaExiste = listaAgendamentos.some(
-      (agendamento) =>
-        agendamento.data === dataCompleta &&
-        agendamento.horario === horarioSelecionado &&
-        agendamento.status === "Confirmado"
-    );
+        setHorariosOcupados(ocupados);
+        setHorarioSelecionado("");
+        return;
+      }
 
-    if (horarioJaExiste) {
+      await salvarAgendamento({
+        nome,
+        telefone,
+        servico,
+        data: dataCompleta,
+        horario: horarioSelecionado,
+        observacao: "",
+        status: "Confirmado",
+      });
+
       Alert.alert(
-        "Horário indisponível",
-        "Já existe um agendamento confirmado para essa data e horário."
+        "Sucesso",
+        "Agendamento realizado com sucesso no banco online!"
       );
 
-      await carregarHorariosOcupados();
-      return;
+      setNome("");
+      setTelefone("");
+
+      router.push("/meus-agendamentos");
+    } catch (error: any) {
+      console.log("ERRO AO SALVAR AGENDAMENTO:", error);
+
+      Alert.alert(
+        "Erro ao salvar",
+        error.message ||
+          "Não foi possível salvar o agendamento no Supabase. Verifique sua internet e a configuração do banco."
+      );
+    } finally {
+      setSalvando(false);
     }
-
-    listaAgendamentos.push(novoAgendamento);
-
-    await AsyncStorage.setItem(
-      "@barberhub:agendamentos",
-      JSON.stringify(listaAgendamentos)
-    );
-
-    await criarLembreteTeste(nome, servico, horarioSelecionado);
-
-    Alert.alert(
-      "Sucesso",
-      "Agendamento realizado com sucesso! Você receberá um lembrete em alguns segundos."
-    );
-
-    setNome("");
-    setTelefone("");
-
-    router.push("/meus-agendamentos");
   }
 
   return (
@@ -443,10 +375,16 @@ export default function AgendarScreen() {
           </View>
 
           <TouchableOpacity
-            style={styles.botaoContinuar}
+            style={[
+              styles.botaoContinuar,
+              salvando && styles.botaoContinuarDesativado,
+            ]}
             onPress={confirmarAgendamento}
+            disabled={salvando}
           >
-            <Text style={styles.textoBotaoContinuar}>Continuar</Text>
+            <Text style={styles.textoBotaoContinuar}>
+              {salvando ? "Salvando..." : "Continuar"}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -688,6 +626,10 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: "center",
     marginTop: 6,
+  },
+
+  botaoContinuarDesativado: {
+    opacity: 0.6,
   },
 
   textoBotaoContinuar: {
