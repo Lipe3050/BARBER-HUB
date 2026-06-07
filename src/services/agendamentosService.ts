@@ -30,7 +30,16 @@ export async function salvarAgendamento(agendamento: Agendamento) {
 
   if (error) {
     console.log("ERRO SUPABASE AO SALVAR:", error);
-    throw new Error(error.message);
+
+    if (error.code === "23505") {
+      throw new Error(
+        "Esse horário acabou de ser reservado por outro cliente. Escolha outro horário disponível."
+      );
+    }
+
+    throw new Error(
+      "Não foi possível salvar o agendamento. Verifique sua conexão com a internet."
+    );
   }
 
   return data;
@@ -44,7 +53,10 @@ export async function listarAgendamentos() {
 
   if (error) {
     console.log("ERRO SUPABASE AO LISTAR:", error);
-    throw new Error(error.message);
+
+    throw new Error(
+      "Não foi possível carregar os agendamentos do banco online."
+    );
   }
 
   return data as Agendamento[];
@@ -59,7 +71,10 @@ export async function listarHorariosOcupados(dataAgendamento: string) {
 
   if (error) {
     console.log("ERRO SUPABASE AO BUSCAR HORÁRIOS:", error);
-    throw new Error(error.message);
+
+    throw new Error(
+      "Não foi possível carregar os horários ocupados do banco online."
+    );
   }
 
   return data.map((item) => item.horario);
@@ -73,7 +88,10 @@ export async function cancelarAgendamento(id: string) {
 
   if (error) {
     console.log("ERRO SUPABASE AO CANCELAR:", error);
-    throw new Error(error.message);
+
+    throw new Error(
+      "Não foi possível cancelar o agendamento no banco online."
+    );
   }
 }
 
@@ -85,6 +103,7 @@ export async function limparAgenda() {
 
   if (error) {
     console.log("ERRO SUPABASE AO LIMPAR:", error);
-    throw new Error(error.message);
+
+    throw new Error("Não foi possível limpar a agenda no banco online.");
   }
 }

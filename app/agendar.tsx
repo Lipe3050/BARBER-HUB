@@ -140,7 +140,7 @@ export default function AgendarScreen() {
       if (ocupados.includes(horarioSelecionado)) {
         Alert.alert(
           "Horário indisponível",
-          "Já existe um agendamento confirmado para essa data e horário."
+          "Esse horário já foi reservado. Escolha outro horário disponível."
         );
 
         setHorariosOcupados(ocupados);
@@ -165,15 +165,15 @@ export default function AgendarScreen() {
 
       setNome("");
       setTelefone("");
+      setHorarioSelecionado("");
 
       router.push("/meus-agendamentos");
     } catch (error: any) {
       console.log("ERRO AO SALVAR AGENDAMENTO:", error);
 
       Alert.alert(
-        "Erro ao salvar",
-        error.message ||
-          "Não foi possível salvar o agendamento no Supabase. Verifique sua internet e a configuração do banco."
+        "Horário indisponível",
+        error.message || "Esse horário não está disponível. Escolha outro horário."
       );
     } finally {
       setSalvando(false);
