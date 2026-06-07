@@ -34,7 +34,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="historico"
         options={{
-          title: "Histórico",
+          title: "Agenda",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="time-outline" size={size} color={color} />
           ),

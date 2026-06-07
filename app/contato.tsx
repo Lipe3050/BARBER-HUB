@@ -2,7 +2,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
 export default function ContatoScreen() {
   function abrirWhatsApp() {
-    const telefone = "5591993914131";
+    const telefone = "5591992257988";
 
     const mensagem =
       "Olá! Vim pelo aplicativo BARBER HUB e gostaria de agendar um horário.";
